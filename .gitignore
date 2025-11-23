@@ -1,0 +1,41 @@
+# Gradle
+.gradle/
+build/
+**/build/
+
+# Gradle wrapper
+gradle/wrapper/gradle-wrapper.jar
+gradle/wrapper/gradle-wrapper.properties
+
+# IntelliJ
+.idea/
+*.iml
+out/
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local env / config
+/src/main/resources/application.properties
+/src/main/resources/application.yml
+.env
+env.properties
+
+# Sensitive files
+secrets/
+*.keystore
+
+# Others
+node_modules/
+
+# If you add more local config files, list them here
+
