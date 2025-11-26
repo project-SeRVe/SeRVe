@@ -4,8 +4,6 @@ build/
 **/build/
 
 # Gradle wrapper
-gradle/wrapper/gradle-wrapper.jar
-gradle/wrapper/gradle-wrapper.properties
 
 # IntelliJ
 .idea/
@@ -39,3 +37,5 @@ node_modules/
 
 # If you add more local config files, list them here
 
+# IDE files
+.idea/
