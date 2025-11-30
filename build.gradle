@@ -1,6 +1,7 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '4.0.0'
+	//id 'org.springframework.boot' version '4.0.0'
+    id 'org.springframework.boot' version '3.4.0'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
@@ -25,7 +26,8 @@ repositories {
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+	//implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'com.google.crypto.tink:tink:1.15.0' // 암호화 Google Tink 라이브러리
 
     // 암호화 라이브러리내 보안 패치 적용
@@ -37,10 +39,10 @@ dependencies {
     testImplementation 'org.springframework.boot:spring-boot-starter-test' // JUnit 5 의존성
 	compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
-
 	runtimeOnly 'com.h2database:h2'
 
-	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	//testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
