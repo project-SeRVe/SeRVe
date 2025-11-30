@@ -27,6 +27,10 @@ public class TeamRepository {
 
     private LocalDateTime createdAt = LocalDateTime.now();
 
+    // [추가] DTO 지원을 위해 타입 필드 추가 (기본값 TEAM)
+    @Enumerated(EnumType.STRING)
+    private RepoType type = RepoType.TEAM;
+
     // 생성자 편의 메서드
     public TeamRepository(String name, String description, String ownerId) {
         this.name = name;
