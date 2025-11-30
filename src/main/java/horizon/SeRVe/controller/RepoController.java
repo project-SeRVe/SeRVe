@@ -15,10 +15,11 @@ public class RepoController {
 
     // DTO (내부 클래스로 간단히 정의)
     @Data
-    static class CreateRepoRequest {
+    public static class CreateRepoRequest {
         private String name;
         private String description;
         private String ownerId; // 임시: 원래는 토큰에서 꺼내야 함
+        private String encryptedTeamKey;
     }
 
     @PostMapping
@@ -26,7 +27,8 @@ public class RepoController {
         Long repoId = repoService.createRepository(
                 request.getName(),
                 request.getDescription(),
-                request.getOwnerId()
+                request.getOwnerId(),
+                request.getEncryptedTeamKey()
         );
         return ResponseEntity.ok(repoId);
     }
