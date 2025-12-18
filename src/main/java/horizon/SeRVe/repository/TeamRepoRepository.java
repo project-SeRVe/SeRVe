@@ -6,4 +6,6 @@ import java.util.Optional;
 
 public interface TeamRepoRepository extends JpaRepository<TeamRepository, Long> {
     Optional<TeamRepository> findByName(String name);
+
+    java.util.Optional<TeamRepository> findByRepoId(String repoId);
 }
