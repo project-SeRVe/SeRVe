@@ -1,64 +1,57 @@
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '4.0.0'
-	id 'io.spring.dependency-management' version '1.1.7'
+    id 'java'
+    id 'org.springframework.boot' version '3.4.0' // 안정적인 최신 버전 사용
+    id 'io.spring.dependency-management' version '1.1.7' // 최신 버전 적용
 }
 
 group = 'horizon'
 version = '0.0.1-SNAPSHOT'
-description = 'SeRVe project for Spring Boot'
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
-	}
-}
-
-configurations {
-	compileOnly {
-		extendsFrom annotationProcessor
-	}
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
 }
 
 repositories {
-	mavenCentral()
+    mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
-    implementation 'com.google.crypto.tink:tink:1.15.0' // 암호화 Google Tink 라이브러리
+    // 1. Web 스타터 (핵심: Jackson 포함 -> ObjectMapper 오류 해결)
+    implementation 'org.springframework.boot:spring-boot-starter-web'
 
-    // 암호화 라이브러리내 보안 패치 적용
-    implementation 'com.google.protobuf:protobuf-java:3.25.5'
-    implementation 'com.google.guava:guava:33.3.1-android'
-
-
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa' // 데이터베이스(JPA) 라이브러리
-    testImplementation 'org.springframework.boot:spring-boot-starter-test' // JUnit 5 의존성
-	compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
-
-	runtimeOnly 'com.h2database:h2'
-
-	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
-
-    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
-
-    // 테스트에서도 사용
-    testCompileOnly 'org.projectlombok:lombok'
-    testAnnotationProcessor 'org.projectlombok:lombok'
-
-    // 스프링 시큐리티
+    // 2. 보안 및 인증 (Security, Validation, JWT)
     implementation 'org.springframework.boot:spring-boot-starter-security'
     implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-    // JWT 토큰 관련
+    // JWT
     implementation 'io.jsonwebtoken:jjwt-api:0.11.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
-    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5' // 여기서도 Jackson을 사용함
+    runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
+
+    // 3. 데이터베이스 (JPA, H2, MariaDB)
+    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'org.mariadb.jdbc:mariadb-java-client'
+
+    // 4. 암호화 (Google Tink & 호환성 패치)
+    implementation 'com.google.crypto.tink:tink:1.15.0'
+    implementation 'com.google.protobuf:protobuf-java:3.25.5'
+    implementation 'com.google.guava:guava:33.3.1-android'
+
+    // 5. 유틸리티 (Lombok)
+    compileOnly 'org.projectlombok:lombok'
+    annotationProcessor 'org.projectlombok:lombok'
+    testCompileOnly 'org.projectlombok:lombok'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
+    // 6. 테스트 (Security 테스트 포함)
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.security:spring-security-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+    useJUnitPlatform()
 }
