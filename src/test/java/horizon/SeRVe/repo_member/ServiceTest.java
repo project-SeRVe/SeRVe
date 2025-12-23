@@ -99,12 +99,12 @@ class ServiceTest {
         byte[] wrappedKeyForMember = keyExchangeService.wrapAesKey(teamAesKey, memberPublicKey);
         String encryptedKeyMember = Base64.getEncoder().encodeToString(wrappedKeyForMember);
 
-        // MemberService 호출
+        // MemberService 호출 (owner가 초대)
         InviteMemberRequest inviteReq = new InviteMemberRequest(member.getEmail(), encryptedKeyMember);
-        memberService.inviteMember(teamId, inviteReq); // 기존: repoId
+        memberService.inviteMember(teamId, owner.getUserId(), inviteReq); // 기존: repoId
 
-        // 검증: 멤버가 잘 추가되었는지 확인
-        List<MemberResponse> members = memberService.getMembers(teamId); // 기존: repoId
+        // 검증: 멤버가 잘 추가되었는지 확인 (owner가 조회)
+        List<MemberResponse> members = memberService.getMembers(teamId, owner.getUserId()); // 기존: repoId
         assertEquals(2, members.size()); // Owner + Member
         System.out.println("   >> 멤버 초대 성공! 현재 멤버 수: " + members.size());
 

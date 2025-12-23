@@ -26,9 +26,20 @@ public class MemberService {
 
     // 1. 멤버 초대
     @Transactional
-    public void inviteMember(String teamId, InviteMemberRequest req) {
+    public void inviteMember(String teamId, String inviterUserId, InviteMemberRequest req) {
         Team team = teamRepository.findByTeamId(teamId)
                 .orElseThrow(() -> new IllegalArgumentException("저장소가 없습니다."));
+
+        User inviter = userRepository.findById(inviterUserId)
+                .orElseThrow(() -> new IllegalArgumentException("초대자를 찾을 수 없습니다."));
+
+        // 초대자의 멤버십 및 권한 검증
+        RepositoryMember inviterMember = memberRepository.findByTeamAndUser(team, inviter)
+                .orElseThrow(() -> new SecurityException("초대자가 저장소 멤버가 아닙니다."));
+
+        if (inviterMember.getRole() != Role.ADMIN) {
+            throw new SecurityException("멤버 초대는 ADMIN 권한이 필요합니다.");
+        }
 
         // 이메일로 유저 찾기
         User invitee = userRepository.findByEmail(req.getEmail())
@@ -54,9 +65,17 @@ public class MemberService {
     }
 
     // 2. 멤버 목록 조회
-    public List<MemberResponse> getMembers(String teamId) {
+    public List<MemberResponse> getMembers(String teamId, String requesterId) {
         Team team = teamRepository.findByTeamId(teamId)
                 .orElseThrow(() -> new IllegalArgumentException("저장소가 없습니다."));
+
+        User requester = userRepository.findById(requesterId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        // 멤버십 검증 (해당 팀의 멤버만 멤버 목록 조회 가능)
+        if (!memberRepository.existsByTeamAndUser(team, requester)) {
+            throw new SecurityException("저장소 멤버가 아닙니다.");
+        }
 
         // 기존: findAllByTeamRepository → findAllByTeam
         return memberRepository.findAllByTeam(team).stream()

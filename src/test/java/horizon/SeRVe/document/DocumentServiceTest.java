@@ -47,10 +47,13 @@ class DocumentServiceTest {
         // 가짜 객체 행동 정의 (Stubbing): "이런 ID로 찾으면 이런 객체를 줘라"
         Team mockTeam = mock(Team.class); // 기존: TeamRepository → Team
         User mockUser = mock(User.class);
+        RepositoryMember mockMember = mock(RepositoryMember.class);
 
         // 기존: findByRepoId → findByTeamId
         given(teamRepository.findByTeamId(teamId)).willReturn(Optional.of(mockTeam));
         given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
+        given(memberRepository.findByTeamAndUser(mockTeam, mockUser)).willReturn(Optional.of(mockMember));
+        given(mockMember.getRole()).willReturn(Role.ADMIN); // ADMIN 권한 부여
 
         // when (실행)
         documentService.uploadDocument(teamId, userId, request);
@@ -65,7 +68,9 @@ class DocumentServiceTest {
     void getDocuments_Success() {
         // given
         String teamId = "team-1"; // 기존: repoId
+        String userId = "user-1";
         Team mockTeam = mock(Team.class); // 기존: TeamRepository
+        User mockRequester = mock(User.class);
         User mockUploader = mock(User.class);
         given(mockUploader.getUserId()).willReturn("uploader-1"); // 업로더 ID 요청 시 반환값 설정
 
@@ -79,11 +84,13 @@ class DocumentServiceTest {
 
         // 기존: findByRepoId → findByTeamId
         given(teamRepository.findByTeamId(teamId)).willReturn(Optional.of(mockTeam));
+        given(userRepository.findById(userId)).willReturn(Optional.of(mockRequester));
+        given(memberRepository.existsByTeamAndUser(mockTeam, mockRequester)).willReturn(true);
         // 기존: findAllByTeamRepository → findAllByTeam
         given(documentRepository.findAllByTeam(mockTeam)).willReturn(List.of(doc1));
 
         // when
-        List<DocumentResponse> result = documentService.getDocuments(teamId);
+        List<DocumentResponse> result = documentService.getDocuments(teamId, userId);
 
         // then
         assertEquals(1, result.size());
@@ -98,6 +105,7 @@ class DocumentServiceTest {
         String docId = "doc-1";
         String userId = "user-1";
 
+        Team mockTeam = mock(Team.class);
         Document mockDoc = mock(Document.class);
         User mockUser = mock(User.class);
         EncryptedData mockData = EncryptedData.builder()
@@ -107,10 +115,12 @@ class DocumentServiceTest {
                 .build();
 
         given(documentRepository.findByDocumentId(docId)).willReturn(Optional.of(mockDoc));
+        given(mockDoc.getTeam()).willReturn(mockTeam); // Document의 Team 설정
         given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
+        given(userRepository.existsById(userId)).willReturn(true); // User 존재 확인
         // ★ 핵심: 멤버십 확인 결과가 'True'라고 가정
         // 기존: existsByTeamRepositoryAndUser → existsByTeamAndUser
-        given(memberRepository.existsByTeamAndUser(any(), any())).willReturn(true);
+        given(memberRepository.existsByTeamAndUser(mockTeam, mockUser)).willReturn(true);
         given(encryptedDataRepository.findByDocument(mockDoc)).willReturn(Optional.of(mockData));
 
         // when
@@ -128,15 +138,18 @@ class DocumentServiceTest {
         String docId = "doc-1";
         String userId = "intruder"; // 침입자
 
+        Team mockTeam = mock(Team.class);
         Document mockDoc = mock(Document.class);
         User mockUser = mock(User.class);
 
         given(documentRepository.findByDocumentId(docId)).willReturn(Optional.of(mockDoc));
+        given(mockDoc.getTeam()).willReturn(mockTeam); // Document의 Team 설정
         given(userRepository.findById(userId)).willReturn(Optional.of(mockUser));
+        given(userRepository.existsById(userId)).willReturn(true); // User 존재 확인
 
         // ★ 핵심: 멤버십 확인 결과가 'False'라고 가정
         // 기존: existsByTeamRepositoryAndUser → existsByTeamAndUser
-        given(memberRepository.existsByTeamAndUser(any(), any())).willReturn(false);
+        given(memberRepository.existsByTeamAndUser(mockTeam, mockUser)).willReturn(false);
 
         // when & then (예외 발생 확인)
         assertThrows(SecurityException.class, () -> {

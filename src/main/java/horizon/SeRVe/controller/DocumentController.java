@@ -36,8 +36,11 @@ public class DocumentController {
 
     // 문서 목록 조회
     @GetMapping("/api/teams/{teamId}/documents") // 기존: /api/repositories/{repoId}/documents
-    public ResponseEntity<List<DocumentResponse>> getDocuments(@PathVariable String teamId) { // 기존: repoId
-        List<DocumentResponse> response = documentService.getDocuments(teamId);
+    public ResponseEntity<List<DocumentResponse>> getDocuments(
+            @PathVariable String teamId, // 기존: repoId
+            @AuthenticationPrincipal User user) {
+
+        List<DocumentResponse> response = documentService.getDocuments(teamId, user.getUserId());
         return ResponseEntity.ok(response);
     }
 

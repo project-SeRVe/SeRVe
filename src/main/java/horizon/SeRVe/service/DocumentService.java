@@ -39,8 +39,16 @@ public class DocumentService {
         User uploader = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
+        // 2. 멤버십 및 권한 검증
+        RepositoryMember member = memberRepository.findByTeamAndUser(team, uploader)
+                .orElseThrow(() -> new SecurityException("저장소 멤버가 아닙니다."));
 
-        // 2. 암호화 데이터(Blob) 변환 및 생성
+        if (member.getRole() != Role.ADMIN) {
+            throw new SecurityException("문서 업로드는 ADMIN 권한이 필요합니다.");
+        }
+
+
+        // 3. 암호화 데이터(Blob) 변환 및 생성
         byte[] blobData = Base64.getDecoder().decode(req.getEncryptedBlob());
 
         // 같은 이름의 파일이 있는지 확인
@@ -76,10 +84,18 @@ public class DocumentService {
 
     // 문서 목록 조회
     @Transactional(readOnly = true)
-    public List<DocumentResponse> getDocuments(String teamId) {
+    public List<DocumentResponse> getDocuments(String teamId, String userId) {
         // 기존: findByRepoId → findByTeamId
         Team team = teamRepository.findByTeamId(teamId)
                 .orElseThrow(() -> new IllegalArgumentException("저장소를 찾을 수 없습니다."));
+
+        User requester = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        // 멤버십 검증 (ADMIN과 MEMBER 모두 조회 가능)
+        if (!memberRepository.existsByTeamAndUser(team, requester)) {
+            throw new SecurityException("저장소 멤버가 아닙니다.");
+        }
 
         // 기존: findAllByTeamRepository → findAllByTeam
         return documentRepository.findAllByTeam(team).stream()

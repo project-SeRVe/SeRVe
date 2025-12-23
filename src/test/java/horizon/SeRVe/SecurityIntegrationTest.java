@@ -117,8 +117,8 @@ class SecurityIntegrationTest {
         // 2-3. InviteMemberRequest DTO 생성 및 초대
         InviteMemberRequest inviteReq = new InviteMemberRequest(member.getEmail(), encryptedKeyForMemberStr);
 
-        // MemberService 호출
-        memberService.inviteMember(teamId, inviteReq); // 기존: repoId
+        // MemberService 호출 (owner가 초대)
+        memberService.inviteMember(teamId, owner.getUserId(), inviteReq); // 기존: repoId
 
         System.out.println(">>> 2. 멤버 초대 완료 (키 공유 성공)");
 

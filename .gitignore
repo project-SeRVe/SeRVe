@@ -40,3 +40,7 @@ node_modules/
 # IDE files
 .idea/
 mariadb_data
+
+# Claude Code
+.claude/
+.clinerules
