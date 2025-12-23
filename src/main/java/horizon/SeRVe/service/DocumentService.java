@@ -4,6 +4,7 @@ import horizon.SeRVe.dto.document.*;
 import horizon.SeRVe.entity.*;
 import horizon.SeRVe.repository.*;
 import lombok.RequiredArgsConstructor;
+import horizon.SeRVe.entity.VectorChunk;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +24,7 @@ public class DocumentService {
     private final UserRepository userRepository;
     private final MemberRepository memberRepository;
     private final EdgeNodeRepository edgeNodeRepository;
+    private final VectorChunkRepository vectorChunkRepository;
 
     /**
      * [Modified] 기존 uploadDocument 메서드를 수정
@@ -155,6 +157,10 @@ public class DocumentService {
         if (!isUploader && !isAdmin) {
             throw new SecurityException("삭제 권한이 없습니다.");
         }
+
+        // 연관된 청크도 논리적 삭제 처리
+        List<VectorChunk> chunks = vectorChunkRepository.findByDocumentId(docId);
+        chunks.forEach(chunk -> chunk.markAsDeleted());
 
         documentRepository.delete(document);
     }
