@@ -44,3 +44,4 @@ mariadb_data
 # Claude Code
 .claude/
 .clinerules
+CLAUDE.md
