@@ -105,8 +105,8 @@ public class DocumentService {
         // 2. 로봇(EdgeNode)인지 확인
         else if (edgeNodeRepository.existsById(requesterId)) {
             EdgeNode robot = edgeNodeRepository.findById(requesterId).get();
-            // 로봇은 '소속 팀'이 문서의 팀과 같으면 권한 O
-            hasPermission = robot.getTeam().equals(document.getTeam());
+            // 로봇은 '소속 팀'이 문서의 팀과 같으면 권한 O (ID 기반 비교)
+            hasPermission = robot.getTeam().getTeamId().equals(document.getTeam().getTeamId());
         }
 
         if (!hasPermission) {

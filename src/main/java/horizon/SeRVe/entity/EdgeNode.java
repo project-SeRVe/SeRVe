@@ -30,6 +30,9 @@ public class EdgeNode implements UserDetails {
     @Column(name = "public_key", columnDefinition = "TEXT", nullable = false)
     private String publicKey; // 로봇의 공개키 (팀 키 암호화 전송용)
 
+    @Column(name = "encrypted_team_key", columnDefinition = "TEXT")
+    private String encryptedTeamKey; // 로봇 공개키로 암호화된 팀 키
+
     // 로봇은 반드시 특정 팀(공장/사이트)에 소속됨
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "team_id", nullable = false)

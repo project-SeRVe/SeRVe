@@ -17,6 +17,7 @@ from tink import JsonKeysetReader, JsonKeysetWriter
 import base64
 import io
 import hashlib
+import os
 
 
 class CryptoUtils:
@@ -237,7 +238,7 @@ class CryptoUtils:
         # 실제로는 Tink의 KMS 통합 사용 권장
         from cryptography.hazmat.primitives.ciphers.aead import AESGCM
         aesgcm = AESGCM(password_key)
-        nonce = b'0' * 12  # 실제로는 랜덤 생성 필요! (데모용 고정값)
+        nonce = os.urandom(12)  # 랜덤 Nonce 생성 (보안 강화)
         encrypted_bytes = aesgcm.encrypt(nonce, private_key_json.encode('utf-8'), None)
 
         # 4. Base64 인코딩

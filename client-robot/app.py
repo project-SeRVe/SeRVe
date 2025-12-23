@@ -4,15 +4,15 @@ from PIL import Image
 import io
 import requests
 from vision_engine import VisionEngine
-from serve_connector import ServeConnector
+from serve_sdk import ServeClient
 from config import SERVER_URL
 
 # 페이지 설정
 st.set_page_config(page_title="SeRVe: Secure Edge AI", layout="wide")
 
 # 세션 상태 초기화
-if 'serve_conn' not in st.session_state:
-    st.session_state.serve_conn = ServeConnector()
+if 'serve_client' not in st.session_state:
+    st.session_state.serve_client = ServeClient(server_url=SERVER_URL)
     st.session_state.is_logged_in = False
     st.session_state.current_repo = None
     st.session_state.server_connected = False
@@ -45,7 +45,7 @@ def check_server_connection(url):
 
 # 로그인 체크
 def is_logged_in():
-    return st.session_state.serve_conn.user_id is not None
+    return st.session_state.serve_client.session.is_authenticated()
 
 # ==================== 서버 연결 화면 ====================
 if not st.session_state.server_connected:
@@ -73,23 +73,24 @@ if not st.session_state.server_connected:
             success, msg = check_server_connection(server_url_input)
 
             if success:
-                # URL 업데이트 (Config 및 인스턴스)
-                st.session_state.serve_conn.server_url = server_url_input
+                # URL 업데이트 (새 클라이언트 인스턴스 생성)
+                st.session_state.serve_client = ServeClient(server_url=server_url_input)
                 import config
                 config.SERVER_URL = server_url_input
                 st.session_state.server_url = server_url_input
 
-                # 2. 연결 즉시 핸드셰이크 시도
-                # 서버 SecurityConfig에서 /api/security/** 가 허용되어 있어야 함
-                h_success, h_msg = st.session_state.serve_conn.perform_handshake()
-                
+                # 2. 연결 즉시 핸드셰이크 시도 (선택적)
+                # 새 SDK에서는 핸드셰이크가 레거시이므로 스킵 가능
+                h_success, h_msg = st.session_state.serve_client.perform_handshake()
+
                 if h_success:
                     st.session_state.server_connected = True
-                    st.success(f"연결 및 핸드셰이크 성공!\nAES 키 교환 완료.")
+                    st.success(f"연결 및 핸드셰이크 성공!\n{h_msg}")
                     st.rerun() # 성공 시 새로고침하여 로그인 화면으로 이동
                 else:
-                    st.error(f"서버 연결은 되었으나 핸드셰이크에 실패했습니다.\n{h_msg}")
-                    st.info("서버의 SecurityConfig에서 /api/security/** 경로가 인증 예외 처리되어 있는지 확인하세요.")
+                    st.warning(f"서버 연결됨, 핸드셰이크는 선택적입니다.\n{h_msg}")
+                    st.session_state.server_connected = True
+                    st.rerun()
             else:
                 st.error(msg)
 
@@ -122,17 +123,13 @@ elif not is_logged_in():
     # 상단에 서버 연결 상태 표시
     with st.sidebar:
         st.header("서버 연결 상태")
-        
-        # 핸드셰이크가 되어 있으면(aes_handle 존재) 보안 연결 표시
-        if st.session_state.serve_conn.aes_handle:
-            st.success(f"보안 연결됨 (AES-GCM)\nServer: {st.session_state.server_url}")
-        else:
-            # 데모 모드 등 핸드셰이크가 안 된 경우
-            st.warning(f"연결됨 (보안 미적용): {st.session_state.server_url}")
+
+        # 새 SDK는 자동으로 키 관리하므로 항상 보안 연결
+        st.success(f"보안 연결됨 (Zero-Trust)\nServer: {st.session_state.server_url}")
 
         if st.button("서버 연결 변경"):
             st.session_state.server_connected = False
-            st.session_state.serve_conn.logout() # 로그아웃 처리
+            st.session_state.serve_client.logout() # 로그아웃 처리
             st.rerun()
         st.divider()
 
@@ -149,7 +146,7 @@ elif not is_logged_in():
         if st.button("로그인", type="primary"):
             if login_email and login_password:
                 try:
-                    success, msg = st.session_state.serve_conn.login(login_email, login_password)
+                    success, msg = st.session_state.serve_client.login(login_email, login_password)
                     if success:
                         st.success(msg)
                         st.session_state.is_logged_in = True
@@ -168,7 +165,7 @@ elif not is_logged_in():
         signup_password = st.text_input("비밀번호", type="password", key="signup_password")
         signup_password_confirm = st.text_input("비밀번호 확인", type="password", key="signup_password_confirm")
 
-        st.info("회원가입 시 자동으로 공개키/개인키 쌍이 생성됩니다. (데모용 임시 키)")
+        st.info("회원가입 시 자동으로 공개키/개인키 쌍이 생성됩니다. (Zero-Trust)")
 
         if st.button("회원가입", type="primary"):
             if signup_email and signup_password and signup_password_confirm:
@@ -176,12 +173,9 @@ elif not is_logged_in():
                     st.error("비밀번호가 일치하지 않습니다.")
                 else:
                     try:
-                        # 데모용 임시 키 생성
-                        public_key = "demo_public_key_" + signup_email
-                        encrypted_private_key = "demo_encrypted_private_key_" + signup_email
-
-                        success, msg = st.session_state.serve_conn.signup(
-                            signup_email, signup_password, public_key, encrypted_private_key
+                        # 새 SDK는 자동으로 키 쌍을 생성함
+                        success, msg = st.session_state.serve_client.signup(
+                            signup_email, signup_password
                         )
                         if success:
                             st.success(msg)
@@ -204,7 +198,7 @@ else:
         st.success(f"✓ {st.session_state.server_url}")
         if st.button("서버 연결 변경", key="change_server_main"):
             st.session_state.server_connected = False
-            st.session_state.serve_conn.logout()
+            st.session_state.serve_client.logout()
             st.session_state.is_logged_in = False
             st.session_state.current_repo = None
             st.rerun()
@@ -212,32 +206,23 @@ else:
         st.divider()
 
         st.header("사용자 정보")
-        st.write(f"**이메일:** {st.session_state.serve_conn.email}")
-        st.write(f"**User ID:** {st.session_state.serve_conn.user_id}")
+        st.write(f"**이메일:** {st.session_state.serve_client.session.email}")
+        st.write(f"**User ID:** {st.session_state.serve_client.session.user_id}")
 
         if st.button("로그아웃"):
-            st.session_state.serve_conn.logout()
+            st.session_state.serve_client.logout()
             st.session_state.is_logged_in = False
             st.session_state.current_repo = None
             st.rerun()
 
         st.divider()
 
-        # 핸드셰이크 상태
-        st.header("보안 핸드셰이크")
-        handshake_status = "연결됨" if st.session_state.serve_conn.aes_handle else "연결 안됨"
-        st.write(f"**상태:** {handshake_status}")
-
-        if st.button("핸드셰이크 수행"):
-            try:
-                success, msg = st.session_state.serve_conn.perform_handshake()
-                if success:
-                    st.success(msg)
-                else:
-                    st.error(msg)
-            except Exception as e:
-                st.error(f"핸드셰이크 중 오류 발생: {str(e)}")
-                st.info("서버 연결을 확인해주세요.")
+        # 세션 정보 (디버깅용)
+        st.header("세션 정보")
+        session_info = st.session_state.serve_client.get_session_info()
+        st.write(f"**인증 상태:** {'✓' if session_info['authenticated'] else '✗'}")
+        st.write(f"**개인키 보유:** {'✓' if session_info['has_private_key'] else '✗'}")
+        st.write(f"**캐시된 저장소:** {len(session_info['cached_repositories'])}개")
 
         st.divider()
 
@@ -267,7 +252,7 @@ else:
         with col1:
             st.write("### 내 저장소 목록")
             if st.button("저장소 목록 새로고침"):
-                repos, msg = st.session_state.serve_conn.get_my_repositories()
+                repos, msg = st.session_state.serve_client.get_my_repositories()
                 if repos is not None:
                     st.session_state.my_repos = repos
                     st.success(msg)
@@ -286,7 +271,7 @@ else:
                             st.success(f"저장소 '{repo['name']}'가 선택되었습니다.")
 
                         if st.button(f"삭제", key=f"delete_repo_{repo['id']}"):
-                            success, msg = st.session_state.serve_conn.delete_repository(repo['id'])
+                            success, msg = st.session_state.serve_client.delete_repository(repo['id'])
                             if success:
                                 st.success(msg)
                                 st.rerun()
@@ -302,11 +287,9 @@ else:
 
             if st.button("저장소 생성", type="primary"):
                 if new_repo_name:
-                    # 데모용 임시 팀 키
-                    encrypted_team_key = "demo_team_key_" + new_repo_name
-
-                    repo_id, msg = st.session_state.serve_conn.create_repository(
-                        new_repo_name, new_repo_desc, encrypted_team_key
+                    # 새 SDK는 자동으로 팀 키를 생성함
+                    repo_id, msg = st.session_state.serve_client.create_repository(
+                        new_repo_name, new_repo_desc
                     )
                     if repo_id:
                         st.success(msg)
@@ -335,32 +318,30 @@ else:
                 upload_text = st.text_area("문서 내용", "This is a hydraulic valve (Type-K). Pressure limit: 500bar.")
 
                 if st.button("암호화 및 업로드", type="primary"):
-                    if not st.session_state.serve_conn.aes_handle:
-                        st.error("먼저 핸드셰이크를 수행해주세요! (사이드바)")
+                    # 새 SDK는 자동으로 암호화 처리
+                    doc_id, msg = st.session_state.serve_client.upload_document(
+                        upload_text, st.session_state.current_repo['id']
+                    )
+                    if doc_id:
+                        st.success(f"{msg} (Doc ID: {doc_id})")
+                        st.session_state.last_doc_id = int(doc_id)
                     else:
-                        doc_id, msg = st.session_state.serve_conn.upload_secure_document(
-                            upload_text, st.session_state.current_repo['id']
-                        )
-                        if doc_id:
-                            st.success(f"{msg} (Doc ID: {doc_id})")
-                            st.session_state.last_doc_id = int(doc_id)
-                        else:
-                            st.error(msg)
+                        st.error(msg)
 
             with col2:
                 st.write("### 문서 다운로드")
                 doc_id = st.number_input("문서 ID", min_value=1, value=st.session_state.get('last_doc_id', 1))
 
                 if st.button("다운로드 및 복호화"):
-                    if not st.session_state.serve_conn.aes_handle:
-                        st.error("먼저 핸드셰이크를 수행해주세요! (사이드바)")
+                    # 새 SDK는 자동으로 복호화 처리
+                    content, msg = st.session_state.serve_client.download_document(
+                        doc_id, st.session_state.current_repo['id']
+                    )
+                    if content:
+                        st.success(msg)
+                        st.text_area("복호화된 내용", content, height=150)
                     else:
-                        content, msg = st.session_state.serve_conn.get_secure_document(doc_id)
-                        if content:
-                            st.success(msg)
-                            st.text_area("복호화된 내용", content, height=150)
-                        else:
-                            st.error(msg)
+                        st.error(msg)
 
     # ==================== 탭 3: 멤버 관리 ====================
     with tab3:
@@ -376,7 +357,7 @@ else:
             with col1:
                 st.write("### 멤버 목록")
                 if st.button("멤버 목록 새로고침"):
-                    members, msg = st.session_state.serve_conn.get_members(st.session_state.current_repo['id'])
+                    members, msg = st.session_state.serve_client.get_members(st.session_state.current_repo['id'])
                     if members is not None:
                         st.session_state.current_members = members
                         st.success(msg)
@@ -388,36 +369,28 @@ else:
                         with st.expander(f"👤 {member['email']} ({member['role']})"):
                             st.write(f"**User ID:** {member['userId']}")
 
-                            # 강퇴 버튼
-                            admin_id = st.text_input("관리자 ID", key=f"admin_kick_{member['userId']}")
+                            # 강퇴 버튼 (새 SDK는 자동으로 현재 사용자를 관리자로 사용)
                             if st.button("강퇴", key=f"kick_{member['userId']}"):
-                                if admin_id:
-                                    success, msg = st.session_state.serve_conn.kick_member(
-                                        st.session_state.current_repo['id'], member['userId'], admin_id
-                                    )
-                                    if success:
-                                        st.success(msg)
-                                        st.rerun()
-                                    else:
-                                        st.error(msg)
+                                success, msg = st.session_state.serve_client.kick_member(
+                                    st.session_state.current_repo['id'], member['userId']
+                                )
+                                if success:
+                                    st.success(msg)
+                                    st.rerun()
                                 else:
-                                    st.warning("관리자 ID를 입력해주세요.")
+                                    st.error(msg)
 
-                            # 권한 변경
+                            # 권한 변경 (새 SDK는 자동으로 현재 사용자를 관리자로 사용)
                             new_role = st.selectbox("새 역할", ["ADMIN", "MEMBER"], key=f"role_{member['userId']}")
-                            admin_id_role = st.text_input("관리자 ID", key=f"admin_role_{member['userId']}")
                             if st.button("권한 변경", key=f"update_role_{member['userId']}"):
-                                if admin_id_role:
-                                    success, msg = st.session_state.serve_conn.update_member_role(
-                                        st.session_state.current_repo['id'], member['userId'], admin_id_role, new_role
-                                    )
-                                    if success:
-                                        st.success(msg)
-                                        st.rerun()
-                                    else:
-                                        st.error(msg)
+                                success, msg = st.session_state.serve_client.update_member_role(
+                                    st.session_state.current_repo['id'], member['userId'], new_role
+                                )
+                                if success:
+                                    st.success(msg)
+                                    st.rerun()
                                 else:
-                                    st.warning("관리자 ID를 입력해주세요.")
+                                    st.error(msg)
                 else:
                     st.info("멤버가 없거나 목록을 불러오지 않았습니다.")
 
@@ -427,11 +400,9 @@ else:
 
                 if st.button("초대", type="primary"):
                     if invite_email:
-                        # 데모용 임시 암호화된 팀 키
-                        encrypted_team_key = "demo_team_key_for_" + invite_email
-
-                        success, msg = st.session_state.serve_conn.invite_member(
-                            st.session_state.current_repo['id'], invite_email, encrypted_team_key
+                        # 새 SDK는 자동으로 팀 키를 암호화하여 전송
+                        success, msg = st.session_state.serve_client.invite_member(
+                            st.session_state.current_repo['id'], invite_email
                         )
                         if success:
                             st.success(msg)
@@ -485,12 +456,14 @@ else:
                 doc_id_rag = st.number_input("Document ID (SeRVe)", min_value=1, value=st.session_state.get('last_doc_id', 1))
 
                 if st.button("분석 (SeRVe 연동)", type="primary"):
-                    if not st.session_state.serve_conn.aes_handle:
-                        st.error("먼저 사이드바에서 SeRVe와 핸드셰이크를 수행해주세요!")
+                    if not st.session_state.current_repo:
+                        st.error("먼저 저장소를 선택해주세요!")
                     elif selected_image:
                         with st.spinner("Fetching Secure Data & Decrypting..."):
-                            # 1. SeRVe에서 보안 문서 가져오기
-                            context_text, msg = st.session_state.serve_conn.get_secure_document(doc_id_rag)
+                            # 1. SeRVe에서 보안 문서 가져오기 (새 SDK 사용)
+                            context_text, msg = st.session_state.serve_client.download_document(
+                                doc_id_rag, st.session_state.current_repo['id']
+                            )
 
                             if context_text:
                                 st.success(f"Context Loaded: {msg}")
