@@ -52,18 +52,29 @@ public class ChunkService {
         }
 
         // 3. Document 찾거나 생성
-        Document document = documentRepository.findByTeamAndOriginalFileName(team, fileName)
-                .orElseGet(() -> {
-                    // 새 문서 생성
-                    Document newDoc = Document.builder()
-                            .documentId(UUID.randomUUID().toString())
-                            .team(team)
-                            .uploader(user)
-                            .originalFileName(fileName)
-                            .fileType("application/octet-stream") // 기본값
-                            .build();
-                    return documentRepository.save(newDoc);
-                });
+        Optional<Document> existingDoc = documentRepository.findByTeamAndOriginalFileName(team, fileName);
+        Document document;
+
+        if (existingDoc.isPresent()) {
+            document = existingDoc.get();
+            // 3-1. 기존 문서가 있으면 uploader 검증 (타인의 문서 수정 방지)
+            if (!document.getUploader().getUserId().equals(user.getUserId())) {
+                throw new SecurityException(
+                    String.format("타인의 문서를 수정할 수 없습니다. (원본 업로더: %s, 현재 사용자: %s)",
+                            document.getUploader().getEmail(), user.getEmail())
+                );
+            }
+        } else {
+            // 3-2. 새 문서 생성
+            document = Document.builder()
+                    .documentId(UUID.randomUUID().toString())
+                    .team(team)
+                    .uploader(user)
+                    .originalFileName(fileName)
+                    .fileType("application/octet-stream") // 기본값
+                    .build();
+            document = documentRepository.save(document);
+        }
 
         // 4. 각 청크 처리 (UPDATE or INSERT)
         for (ChunkUploadItem item : request.getChunks()) {
@@ -149,8 +160,27 @@ public class ChunkService {
         List<VectorChunk> chunks = vectorChunkRepository
                 .findByTeamIdAndVersionGreaterThanOrderByVersionAsc(teamId, lastVersion);
 
+        // 4. Document 정보 조회 (N+1 방지: IN 쿼리 사용)
+        List<String> documentIds = chunks.stream()
+                .map(VectorChunk::getDocumentId)
+                .distinct()
+                .collect(Collectors.toList());
+
+        // Document ID → Uploader Email 매핑 생성
+        java.util.Map<String, String> documentUploaderMap = documentRepository
+                .findAllByDocumentIdIn(documentIds)
+                .stream()
+                .collect(Collectors.toMap(
+                        Document::getDocumentId,
+                        doc -> doc.getUploader().getEmail()
+                ));
+
+        // 5. ChunkSyncResponse 생성 (createdBy 포함)
         return chunks.stream()
-                .map(ChunkSyncResponse::from)
+                .map(chunk -> {
+                    String createdBy = documentUploaderMap.getOrDefault(chunk.getDocumentId(), "unknown");
+                    return ChunkSyncResponse.from(chunk, createdBy);
+                })
                 .collect(Collectors.toList());
     }
 }

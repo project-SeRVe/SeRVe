@@ -84,9 +84,32 @@ public class RepoService {
 
         // 기존: findByTeamRepositoryAndUser → findByTeamAndUser
         RepositoryMember member = memberRepository.findByTeamAndUser(team, user)
-                .orElseThrow(() -> new SecurityException("해당 저장소의 멤버가 아닙니다."));
+                .orElseThrow(() -> new SecurityException(
+                    String.format("팀 '%s'의 멤버가 아닙니다. 팀 ADMIN에게 초대를 요청하세요. (ADMIN: %s)",
+                            team.getName(),
+                            getAdminEmail(team))
+                ));
 
-        return member.getEncryptedTeamKey();
+        // 팀 키 존재 여부 검증
+        String encryptedKey = member.getEncryptedTeamKey();
+        if (encryptedKey == null || encryptedKey.isEmpty()) {
+            throw new IllegalStateException(
+                String.format("팀 키가 설정되지 않았습니다. 팀 '%s'의 ADMIN에게 재초대를 요청하세요. (ADMIN: %s)",
+                        team.getName(),
+                        getAdminEmail(team))
+            );
+        }
+
+        return encryptedKey;
+    }
+
+    // ADMIN 이메일 조회 헬퍼 메서드
+    private String getAdminEmail(Team team) {
+        return memberRepository.findAllByTeam(team).stream()
+                .filter(m -> m.getRole() == Role.ADMIN)
+                .findFirst()
+                .map(m -> m.getUser().getEmail())
+                .orElse("Unknown");
     }
 
     // [추가] 저장소 삭제

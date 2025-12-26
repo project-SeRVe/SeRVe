@@ -20,4 +20,8 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
 
     // 같은 이름이면 버전을 올리고 없으면 새로 만드는 로직
     Optional<Document> findByTeamAndOriginalFileName(Team team, String originalFileName);
+
+    // 여러 documentId로 일괄 조회 (N+1 방지)
+    @EntityGraph(attributePaths = {"uploader"})
+    List<Document> findAllByDocumentIdIn(List<String> documentIds);
 }
