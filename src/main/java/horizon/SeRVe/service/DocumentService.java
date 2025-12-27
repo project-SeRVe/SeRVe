@@ -41,12 +41,13 @@ public class DocumentService {
         User uploader = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        // 2. 멤버십 및 권한 검증
+        // 2. 멤버십 및 권한 검증 (Federated Model: MEMBER만 업로드 가능)
         RepositoryMember member = memberRepository.findByTeamAndUser(team, uploader)
                 .orElseThrow(() -> new SecurityException("저장소 멤버가 아닙니다."));
 
-        if (member.getRole() != Role.ADMIN) {
-            throw new SecurityException("문서 업로드는 ADMIN 권한이 필요합니다.");
+        // ADMIN은 키 관리만 담당, 데이터 업로드는 MEMBER 전용
+        if (member.getRole() == Role.ADMIN) {
+            throw new SecurityException("ADMIN은 데이터 업로드가 불가능합니다. MEMBER만 업로드할 수 있습니다.");
         }
 
 
@@ -105,25 +106,33 @@ public class DocumentService {
                 .collect(Collectors.toList());
     }
 
-    // 데이터 다운로드 (기존 getDocument -> getData로 역할 구체화)
+    // [DEPRECATED] 다운로드 기능 제거 - Federated Model에서는 동기화만 사용
+    // 이 메서드는 더 이상 사용되지 않으며, GET /api/sync/chunks 엔드포인트로 대체되었습니다.
+    // 기존 코드 호환성을 위해 남겨두었으나, 향후 삭제 예정
+    @Deprecated
     @Transactional(readOnly = true)
-    public EncryptedDataResponse getData(String docId, String requesterId) { // requesterId는 userId 또는 nodeId
+    public EncryptedDataResponse getData(String docId, String requesterId) {
+        throw new UnsupportedOperationException(
+            "다운로드 기능은 Federated Model에서 지원하지 않습니다. " +
+            "대신 GET /api/sync/chunks 엔드포인트를 사용하세요."
+        );
+    }
+
+    // 기존 구현 (참고용, 삭제 예정)
+    /*
+    @Transactional(readOnly = true)
+    public EncryptedDataResponse getData(String docId, String requesterId) {
         Document document = documentRepository.findByDocumentId(docId)
                 .orElseThrow(() -> new IllegalArgumentException("문서를 찾을 수 없습니다."));
 
-        // [권한 체크 로직 변경]
         boolean hasPermission = false;
 
-        // 1. 사람(User)인지 확인
         if (userRepository.existsById(requesterId)) {
             User user = userRepository.findById(requesterId).get();
-            // 기존 멤버십 체크
             hasPermission = memberRepository.existsByTeamAndUser(document.getTeam(), user);
         }
-        // 2. 로봇(EdgeNode)인지 확인
         else if (edgeNodeRepository.existsById(requesterId)) {
             EdgeNode robot = edgeNodeRepository.findById(requesterId).get();
-            // 로봇은 '소속 팀'이 문서의 팀과 같으면 권한 O (ID 기반 비교)
             hasPermission = robot.getTeam().getTeamId().equals(document.getTeam().getTeamId());
         }
 
@@ -136,8 +145,9 @@ public class DocumentService {
 
         return EncryptedDataResponse.from(data);
     }
+    */
 
-    // 문서 삭제
+    // 문서 삭제 (ADMIN 전용)
     @Transactional
     public void deleteDocument(String docId, String userId) {
         Document document = documentRepository.findByDocumentId(docId)
@@ -146,16 +156,12 @@ public class DocumentService {
         User requester = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        boolean isUploader = document.getUploader().getUserId().equals(userId);
-
-        // 기존: document.getTeamRepository() → document.getTeam()
+        // ADMIN 권한 체크 (Physical AI: 엣지 디바이스는 삭제 권한 없음)
         RepositoryMember memberInfo = memberRepository.findByTeamAndUser(document.getTeam(), requester)
                 .orElseThrow(() -> new SecurityException("저장소 멤버가 아닙니다."));
 
-        boolean isAdmin = memberInfo.getRole() == Role.ADMIN;
-
-        if (!isUploader && !isAdmin) {
-            throw new SecurityException("삭제 권한이 없습니다.");
+        if (memberInfo.getRole() != Role.ADMIN) {
+            throw new SecurityException("문서 삭제는 ADMIN 권한이 필요합니다.");
         }
 
         // 연관된 청크도 논리적 삭제 처리
@@ -163,5 +169,45 @@ public class DocumentService {
         chunks.forEach(chunk -> chunk.markAsDeleted());
 
         documentRepository.delete(document);
+    }
+
+    /**
+     * DEK 재암호화 (키 로테이션 시 사용)
+     * - Envelope Encryption: 청크 데이터는 변경하지 않고 DEK만 새 팀 키로 재암호화
+     * - ADMIN 권한 필요
+     */
+    @Transactional
+    public void reencryptDocumentKeys(String teamId, String userId, ReencryptKeysRequest request) {
+        // 1. Team 조회
+        Team team = teamRepository.findByTeamId(teamId)
+                .orElseThrow(() -> new IllegalArgumentException("팀을 찾을 수 없습니다."));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
+
+        // 2. ADMIN 권한 체크
+        RepositoryMember member = memberRepository.findByTeamAndUser(team, user)
+                .orElseThrow(() -> new SecurityException("저장소 멤버가 아닙니다."));
+
+        if (member.getRole() != Role.ADMIN) {
+            throw new SecurityException("DEK 재암호화는 ADMIN 권한이 필요합니다.");
+        }
+
+        // 3. 각 문서의 DEK 업데이트
+        for (ReencryptKeysRequest.DocumentKeyUpdate update : request.getDocuments()) {
+            Document document = documentRepository.findByDocumentId(update.getDocumentId())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "문서를 찾을 수 없습니다: " + update.getDocumentId()));
+
+            // 팀 소속 검증
+            if (!document.getTeam().getTeamId().equals(teamId)) {
+                throw new SecurityException(
+                        "다른 팀의 문서입니다: " + update.getDocumentId());
+            }
+
+            // DEK 업데이트 (Base64 디코딩)
+            byte[] newEncryptedDEK = Base64.getDecoder().decode(update.getNewEncryptedDEK());
+            document.setEncryptedDEK(newEncryptedDEK);
+        }
     }
 }

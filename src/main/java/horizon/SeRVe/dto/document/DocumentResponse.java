@@ -14,6 +14,7 @@ public class DocumentResponse {
     private String fileType;
     private String uploaderId;
     private LocalDateTime createdAt;
+    private byte[] encryptedDEK;  // Envelope Encryption: 팀 키로 암호화된 DEK
 
     public static DocumentResponse from(Document document) {
         return DocumentResponse.builder()
@@ -22,6 +23,7 @@ public class DocumentResponse {
                 .fileType(document.getFileType())
                 .uploaderId(document.getUploader().getUserId())
                 .createdAt(document.getUploadedAt())
+                .encryptedDEK(document.getEncryptedDEK())
                 .build();
     }
 }

@@ -1,9 +1,11 @@
 package horizon.SeRVe.controller;
 
 import horizon.SeRVe.dto.sync.ChangedDocumentResponse;
+import horizon.SeRVe.entity.User;
 import horizon.SeRVe.service.SyncService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +25,7 @@ public class
      *
      * @param teamId 팀 ID
      * @param lastSyncVersion 마지막 동기화 버전 (기본값: 0 = 전체 조회)
+     * @param user 인증된 사용자 (멤버십 검증용)
      * @return 변경된 문서 목록
      *
      * 사용 예시:
@@ -44,10 +47,11 @@ public class
     @GetMapping("/documents")
     public ResponseEntity<List<ChangedDocumentResponse>> getChangedDocuments(
             @RequestParam String teamId,
-            @RequestParam(defaultValue = "0") int lastSyncVersion) {
+            @RequestParam(defaultValue = "0") int lastSyncVersion,
+            @AuthenticationPrincipal User user) {
 
         List<ChangedDocumentResponse> changedDocuments =
-                syncService.getChangedDocuments(teamId, lastSyncVersion);
+                syncService.getChangedDocuments(teamId, lastSyncVersion, user.getUserId());
 
         return ResponseEntity.ok(changedDocuments);
     }

@@ -18,6 +18,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtTokenProvider jwtTokenProvider;
+    // private final RateLimitFilter rateLimitFilter;  // 테스트를 위해 임시 비활성화
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -34,6 +35,9 @@ public class SecurityConfig {
                         .requestMatchers("/auth/**", "/api/security/**", "/swagger-ui/**").permitAll()
                         .anyRequest().authenticated()
                 )
+                // Rate Limiting 필터 먼저 적용 (DDoS 방지) - 테스트를 위해 임시 비활성화
+                // .addFilterBefore(rateLimitFilter, UsernamePasswordAuthenticationFilter.class)
+                // JWT 인증 필터
                 .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

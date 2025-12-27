@@ -40,13 +40,17 @@ dependencies {
     implementation 'com.google.protobuf:protobuf-java:3.25.5'
     implementation 'com.google.guava:guava:33.3.1-android'
 
-    // 5. 유틸리티 (Lombok)
+    // 5. Rate Limiting (Bucket4j + Caffeine Cache)
+    implementation 'com.bucket4j:bucket4j-core:8.1.0'
+    implementation 'com.github.ben-manes.caffeine:caffeine:3.1.8'
+
+    // 6. 유틸리티 (Lombok)
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     testCompileOnly 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
 
-    // 6. 테스트 (Security 테스트 포함)
+    // 7. 테스트 (Security 테스트 포함)
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'

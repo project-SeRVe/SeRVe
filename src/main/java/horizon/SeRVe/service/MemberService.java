@@ -98,14 +98,25 @@ public class MemberService {
         RepositoryMember targetMember = validateAdminAndGetTarget(teamId, targetUserId, adminUserId);
         memberRepository.delete(targetMember);
 
+        // [자동 키 로테이션 지원] 남은 멤버 목록 조회 및 반환
+        // 클라이언트가 즉시 키 로테이션을 수행할 수 있도록 필요한 정보 제공
+        List<MemberKickResponse.RemainingMemberInfo> remainingMembers = memberRepository.findAllByTeam(team)
+                .stream()
+                .map(member -> MemberKickResponse.RemainingMemberInfo.builder()
+                        .userId(member.getUser().getUserId())
+                        .email(member.getUser().getEmail())
+                        .publicKey(member.getUser().getPublicKey())
+                        .build())
+                .collect(java.util.stream.Collectors.toList());
+
         // [보안] 멤버 퇴출 시 Key Rotation 필수 알림
         // 퇴출된 멤버는 여전히 팀 키를 보유하고 있으므로, 즉시 팀 키를 갱신해야 합니다.
-        // 클라이언트(Admin)는 다음 단계를 수행해야 합니다:
+        // 클라이언트(Admin)는 응답의 remainingMembers를 사용하여:
         // 1. 새로운 팀 키 생성
         // 2. 남은 멤버들의 공개키로 새 팀 키 래핑
         // 3. POST /teams/{teamId}/members/rotate-keys API 호출하여 키 업데이트
         // 4. (선택적) 기존 문서를 새 팀 키로 재암호화
-        return MemberKickResponse.createSuccess();
+        return MemberKickResponse.createSuccess(remainingMembers);
     }
 
     // 4. 권한 변경

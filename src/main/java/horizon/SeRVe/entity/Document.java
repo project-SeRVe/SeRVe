@@ -31,6 +31,12 @@ public class Document {
 
     private String fileType;
 
+    // Envelope Encryption: 문서별 데이터 키(DEK)를 팀 키(KEK)로 암호화하여 저장
+    // DEK는 실제 청크 데이터를 암호화하는 키, 팀 키로 래핑되어 보관됨
+    @Lob
+    @Column(columnDefinition = "LONGBLOB")
+    private byte[] encryptedDEK;
+
     // 메타데이터와 실제 데이터 분리 (1:1 관계)
     @OneToOne(mappedBy = "document", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private EncryptedData encryptedData;
@@ -44,5 +50,9 @@ public class Document {
 
     public void setEncryptedData(EncryptedData encryptedData) {
         this.encryptedData = encryptedData;
+    }
+
+    public void setEncryptedDEK(byte[] encryptedDEK) {
+        this.encryptedDEK = encryptedDEK;
     }
 }

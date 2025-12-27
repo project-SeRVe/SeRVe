@@ -64,15 +64,25 @@ public class ChunkService {
                             document.getUploader().getEmail(), user.getEmail())
                 );
             }
+            // 3-1-1. Envelope Encryption: encryptedDEK 업데이트 (키 로테이션 시)
+            if (request.getEncryptedDEK() != null) {
+                document.setEncryptedDEK(Base64.getDecoder().decode(request.getEncryptedDEK()));
+            }
         } else {
             // 3-2. 새 문서 생성
-            document = Document.builder()
+            Document.DocumentBuilder builder = Document.builder()
                     .documentId(UUID.randomUUID().toString())
                     .team(team)
                     .uploader(user)
                     .originalFileName(fileName)
-                    .fileType("application/octet-stream") // 기본값
-                    .build();
+                    .fileType("application/octet-stream"); // 기본값
+
+            // 3-2-1. Envelope Encryption: encryptedDEK 저장
+            if (request.getEncryptedDEK() != null) {
+                builder.encryptedDEK(Base64.getDecoder().decode(request.getEncryptedDEK()));
+            }
+
+            document = builder.build();
             document = documentRepository.save(document);
         }
 
@@ -105,7 +115,7 @@ public class ChunkService {
 
     /**
      * C. 청크 삭제 (논리적 삭제)
-     * - ADMIN 권한 필요
+     * - 권한: ADMIN 전용 (Physical AI 환경: 엣지 디바이스는 삭제 권한 없음)
      * - fileName으로 Document 조회
      */
     @Transactional
@@ -117,7 +127,7 @@ public class ChunkService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        // 2. ADMIN 권한 체크
+        // 2. ADMIN 권한 체크 (Physical AI: 엣지 디바이스는 자율 업로드만, 삭제는 관리자만)
         RepositoryMember member = memberRepository.findByTeamAndUser(team, user)
                 .orElseThrow(() -> new SecurityException("저장소 멤버가 아닙니다."));
 
@@ -138,8 +148,8 @@ public class ChunkService {
     }
 
     /**
-     * E. 팀별 증분 동기화
-     * - ADMIN 또는 MEMBER 권한 허용
+     * E. 팀별 증분 동기화 (암호화된 데이터 blob 포함)
+     * - Federated Model: MEMBER 전용 (ADMIN은 메타데이터만 조회 가능, 실제 데이터 접근 불가)
      * - 해당 팀의 모든 문서에서 version > lastVersion인 청크 조회
      */
     @Transactional(readOnly = true)
@@ -151,9 +161,16 @@ public class ChunkService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다."));
 
-        // 2. 팀 멤버십 체크
-        if (!memberRepository.existsByTeamAndUser(team, user)) {
-            throw new SecurityException("팀 멤버가 아닙니다.");
+        // 2. 멤버십 및 권한 체크 (Federated Model: MEMBER 전용)
+        RepositoryMember member = memberRepository.findByTeamAndUser(team, user)
+                .orElseThrow(() -> new SecurityException("팀 멤버가 아닙니다."));
+
+        // ADMIN은 암호화된 데이터(blob)에 접근 불가 (Zero-Trust 원칙)
+        if (member.getRole() == Role.ADMIN) {
+            throw new SecurityException(
+                "ADMIN은 암호화된 데이터 동기화가 불가능합니다. " +
+                "ADMIN은 메타데이터 조회(GET /api/teams/{teamId}/documents)만 가능합니다."
+            );
         }
 
         // 3. 팀의 모든 문서에서 변경된 청크 조회
