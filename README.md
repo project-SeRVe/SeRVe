@@ -281,7 +281,22 @@ docker compose up -d
 - User: serve_user
 - Password: serve_pass
 
-### 2. 애플리케이션 실행
+### 2. 초기 설정 (처음 실행 시)
+
+**중요**: Git clone 후 반드시 설정 파일을 생성해야 합니다!
+
+```bash
+# 1. resources 디렉토리 생성
+mkdir -p src/main/resources
+
+# 2. 설정 파일 복사
+cp application.properties.example src/main/resources/application.properties
+
+# 또는 직접 복사
+cp application.properties src/main/resources/
+```
+
+### 3. 애플리케이션 실행
 
 ```bash
 # 빌드 및 테스트
@@ -295,7 +310,7 @@ docker compose up -d
 - Backend API: http://localhost:8080
 - Actuator Health: http://localhost:8080/actuator/health
 
-### 3. 설정 파일
+### 4. 설정 파일
 
 `application.properties` (프로젝트 루트):
 ```properties
